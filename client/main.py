@@ -1,11 +1,11 @@
 import sys
+import logging
 import time
 import ipfsapi
 import json
 import os
-import logging
 from watchdog.observers import Observer
-from watchdog.events import *
+from watchdog.events import FileSystemEventHandler
 
 
 logger = logging.getLogger(__name__)
@@ -26,17 +26,17 @@ consoleHandler.setLevel(logging.INFO)
 logger.addHandler(consoleHandler)
 
 
-dir_map = {}
+content_map = {}
 
 
-def add_to_dir_map(file_tuple_list):
-    global dir_map
+def add_to_content_map(content_list):
+    global content_map
 
-    for name, hash in file_tuple_list:
+    for name, hash in content_list:
         if name:
-            dir_map[name] = hash
+            content_map[name] = hash
 
-    logger.debug(json.dumps(dir_map, indent=4))
+    logger.debug(json.dumps(content_map, indent=4))
 
 
 class IPFSApi:
@@ -55,90 +55,98 @@ class IPFSApi:
         if not os.path.exists(dir_path):
             raise FileNotFoundError(dir_path)
 
-        # dir_path += '/'
-
         logger.debug("Adding %s to IPFS" % dir_path)
 
-        res = self.conn.add(dir_path, recursive)
+        resp = self.conn.add(dir_path, recursive)
 
         logger.info("Added %s to IPFS" % dir_path)
-        logger.debug(json.dumps(res, indent=4))
+        logger.debug(json.dumps(resp, indent=4))
 
-        if isinstance(res, list):
-            return [(_dict_['Name'], _dict_['Hash']) for _dict_ in res]
-        elif isinstance(res, dict):
-            return [(res['Name'], res['Hash'])]
+        if isinstance(resp, list):
+            return [(d['Name'], d['Hash']) for d in resp]
+        elif isinstance(resp, dict):
+            return [(resp['Name'], resp['Hash'])]
         else:
-            raise Exception("Unhandled response instance %s!" % type(res))
+            raise Exception("Unhandled response instance %s!" % type(resp))
 
     def add_link(self, root, name, ref):
-        res = self.conn.object_patch_add_link(root, name, ref)
+        resp = self.conn.object_patch_add_link(root, name, ref)
         logger.info("Added link to (%s, %s) from %s" % (name, ref, root))
-        logger.debug(json.dumps(res, indent=4))
-        return res["Hash"]
+        logger.debug(json.dumps(resp, indent=4))
+        return resp['Hash']
 
     def rm_link(self, root, link):
-        res = self.conn.object_patch_rm_link(root, link)
+        resp = self.conn.object_patch_rm_link(root, link)
         logger.info("Removed link to %s from %s" % (link, root))
-        logger.debug(json.dumps(res, indent=4))
+        logger.debug(json.dumps(resp, indent=4))
 
     def ls(self, hash):
-        res = self.conn.ls(hash)
-        logger.debug(json.dumps(res, indent=4))
+        resp = self.conn.ls(hash)
+        return json.dumps(resp, indent=4)
 
 
 class EventHandler(FileSystemEventHandler):
-    def on_any_event(self, event):
-        # print("EVENT")
-        # print(event.event_type)
-        # print(event.src_path)
-        # if hasattr(event, 'dest_path'):
-        #     print(event.dest_path)
-        # print()
-        pass
-
     def on_created(self, event):
         src_path = event.src_path.replace(os.sep, '/')
         logger.info("CREATED %s" % src_path)
         if os.path.isdir(src_path):
-            parent_dir = os.path.dirname(src_path)
-            dir_to_add = os.path.basename(src_path)
-
-            current_dir = os.getcwd()
-            os.chdir(parent_dir)
-            dir_content = ipfs_api.add_dir(dir_to_add, True)
-            os.chdir(current_dir)
-
-            new_dir_content = [(parent_dir + '/' + name, hash) for name, hash in dir_content]
-
-            add_to_dir_map(new_dir_content)
-            src_hash = dir_map[src_path]
+            self._on_created_dir(src_path)
         else:
-            _, src_hash = ipfs_api.add_file(event.src_path)
-            add_to_dir_map([(src_path, src_hash)])
+            self._on_created_file(src_path)
 
-        while True:
+        src_hash = content_map[src_path]
+
+        self._add_links_to_parent_dirs(src_path, src_hash)
+
+        logger.debug(ipfs_api.ls(content_map[path]))
+
+    @staticmethod
+    def _on_created_dir(dir_path):
+        parent_dir_path = os.path.dirname(dir_path)
+        dir_name = os.path.basename(dir_path)
+
+        current_dir = os.getcwd()
+        os.chdir(parent_dir_path)
+
+        relative_dir_content = ipfs_api.add_dir(dir_name, True)
+
+        os.chdir(current_dir)
+
+        dir_content = [(parent_dir_path + '/' + name, hash) for name, hash in relative_dir_content]
+
+        add_to_content_map(dir_content)
+
+        return content_map[dir_path]
+
+    @staticmethod
+    def _on_created_file(file_path):
+        _, file_hash = ipfs_api.add_file(file_path)
+        add_to_content_map([(file_path, file_hash)])
+
+    @staticmethod
+    def _add_links_to_parent_dirs(src_path, src_hash):
+        while os.path.dirname(src_path):
             parent_dir = os.path.dirname(src_path)
-            if not parent_dir:
-                break
-            parent_dir_hash = dir_map[parent_dir]
-            logger.debug("Adding link to (%s, %s) from (%s, %s)" % (os.path.basename(src_path), src_hash, parent_dir, parent_dir_hash))
-            new_parent_dir_hash = ipfs_api.add_link(parent_dir_hash, os.path.basename(src_path), src_hash)
-            dir_map[parent_dir] = new_parent_dir_hash
-            logger.debug("%s: %s" % (parent_dir, dir_map[parent_dir]))
-            src_path = parent_dir
-            src_hash = dir_map[parent_dir]
+            parent_dir_hash = content_map[parent_dir]
 
-        ipfs_api.ls(dir_map[path])
+            logger.debug("Adding link to (%s, %s) from (%s, %s)"
+                         % (os.path.basename(src_path), src_hash, parent_dir, parent_dir_hash))
+
+            new_parent_dir_hash = ipfs_api.add_link(parent_dir_hash, os.path.basename(src_path), src_hash)
+            content_map[parent_dir] = new_parent_dir_hash
+
+            logger.debug("%s: %s" % (parent_dir, content_map[parent_dir]))
+
+            src_path = parent_dir
+            src_hash = content_map[parent_dir]
 
 
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else '.'
 
     ipfs_api = IPFSApi()
-    # dir_content = ipfs_api.add_dir(path, recursive=True)
 
-    add_to_dir_map(ipfs_api.add_dir(path, recursive=True))
+    add_to_content_map(ipfs_api.add_dir(path, recursive=True))
 
     event_handler = EventHandler()
     observer = Observer()
