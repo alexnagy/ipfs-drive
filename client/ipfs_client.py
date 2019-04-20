@@ -2,13 +2,20 @@ import ipfsapi
 import os
 import json
 
+from encryption.aes_cipher import AESCipher
+from directory import Directory
+
 
 class IPFSClient:
     def __init__(self, logger):
         self._logger = logger
         self._conn = ipfsapi.connect('127.0.0.1', 5001)
+        self._aes = AESCipher('parola')
+        self._working_dir = os.path.join(os.getcwd(), 'working_dir')
+        if not os.path.isdir(self._working_dir):
+            os.mkdir(self._working_dir)
 
-    def add_file(self, file_path):
+    def add_file(self, file_path, encrypted=True):
         if not os.path.exists(file_path):
             raise FileNotFoundError(file_path)
         res = self._conn.add(file_path)
@@ -16,9 +23,14 @@ class IPFSClient:
         self._logger.debug(json.dumps(res, indent=4))
         return res['Name'], res['Hash']
 
-    def add_dir(self, dir_path, recursive):
+    def add_dir(self, dir_path, recursive, encrypted=True):
         if not os.path.exists(dir_path):
             raise FileNotFoundError(dir_path)
+
+        if encrypted:
+            encrypted_dir_path = Directory(dir_path).encrypt_content(self._aes, self._working_dir)
+            dir_path = os.path.join(os.path.dirname(encrypted_dir_path), os.path.basename(dir_path))
+            os.rename(encrypted_dir_path, dir_path)
 
         self._logger.debug("Adding %s to IPFS" % dir_path)
 
@@ -26,6 +38,9 @@ class IPFSClient:
 
         self._logger.info("Added %s to IPFS" % dir_path)
         self._logger.debug(json.dumps(resp, indent=4))
+
+        if encrypted:
+            os.rmdir(dir_path)
 
         if isinstance(resp, list):
             return [(d['Name'], d['Hash']) for d in resp]

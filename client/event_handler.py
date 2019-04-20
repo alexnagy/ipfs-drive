@@ -1,6 +1,8 @@
 import os
 from watchdog.events import FileSystemEventHandler
 
+from encryption.aes_cipher import AESCipher
+
 
 class EventHandler(FileSystemEventHandler):
     def __init__(self, ipfs_client, content, root_dir, logger):
@@ -9,6 +11,7 @@ class EventHandler(FileSystemEventHandler):
         self._content = content
         self._root_dir = root_dir
         self._logger = logger
+        self._aes = AESCipher('parola')
     
     def on_created(self, event):
         src_path = event.src_path.replace(os.sep, '/')

@@ -1,6 +1,7 @@
 import sys
 import logging
 import time
+
 from watchdog.observers import Observer
 from ipfs_client import IPFSClient
 from content import Content
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     ipfs_client = IPFSClient(logger)
     content = Content(logger)
 
-    content.add_list(ipfs_client.add_dir(root_dir, recursive=True))
+    content.add_list(ipfs_client.add_dir(root_dir, recursive=True, encrypted=True))
 
     event_handler = EventHandler(ipfs_client, content, root_dir, logger)
     observer = Observer()
