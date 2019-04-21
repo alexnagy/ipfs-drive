@@ -1,4 +1,7 @@
 import os
+import shutil
+
+from file import File
 
 
 class Directory:
@@ -8,6 +11,17 @@ class Directory:
         self._path = path
         self._parent = os.path.dirname(self._path)
         self._name = os.path.basename(self._path)
+
+    @property
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, path):
+        self._path = path
+
+    def remove(self):
+        shutil.rmtree(self._path)
 
     def ls(self, recursive=False):
         content = []
@@ -36,7 +50,7 @@ class Directory:
         os.chdir(prev_cwd)
 
     def encrypt_content(self, cipher, dst_dir):
-        encypted_dir_path = os.path.join(dst_dir, self._name + '_encrypted')
+        encypted_dir_path = os.path.join(dst_dir, self._name)
 
         prev_cwd = os.getcwd()
         os.chdir(self._parent)
@@ -46,9 +60,8 @@ class Directory:
             if not os.path.isdir(encrypted_root):
                 os.mkdir(encrypted_root)
             for file in files:
-                file_path = os.path.join(root, file)
-                encrypted_file_path = os.path.join(encrypted_root, file)
-                cipher.encrypt_file(file_path, encrypted_file_path)
+                file_path = os.path.join(self._parent, root, file).replace(os.sep, '/')
+                File(file_path).encrypt_content(cipher, encrypted_root)
 
         os.chdir(prev_cwd)
 

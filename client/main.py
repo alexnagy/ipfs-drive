@@ -1,12 +1,13 @@
 import sys
 import logging
 import time
+import os
 
 from watchdog.observers import Observer
 from ipfs_client import IPFSClient
 from content import Content
 from event_handler import EventHandler
-
+from directory import Directory
 
 def init_logger():
     logger = logging.getLogger(__name__)
@@ -30,14 +31,17 @@ def init_logger():
 
 
 if __name__ == "__main__":
-    root_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
+    # root_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
+    # root_dir.replace(os.sep, '/')
+
+    root_dir = r'd:/Facultate/Thesis/test/test2'
 
     logger = init_logger()
 
     ipfs_client = IPFSClient(logger)
     content = Content(logger)
 
-    content.add_list(ipfs_client.add_dir(root_dir, recursive=True, encrypted=True))
+    content.add_list(ipfs_client.add_dir(Directory(root_dir), recursive=True, encrypted=False))
 
     event_handler = EventHandler(ipfs_client, content, root_dir, logger)
     observer = Observer()

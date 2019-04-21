@@ -1,7 +1,9 @@
 import os
-from watchdog.events import FileSystemEventHandler
 
+from watchdog.events import FileSystemEventHandler
 from encryption.aes_cipher import AESCipher
+from directory import Directory
+from file import File
 
 
 class EventHandler(FileSystemEventHandler):
@@ -27,18 +29,18 @@ class EventHandler(FileSystemEventHandler):
         if os.path.isdir(event.src_path):
             return
 
-        file_path = event.src_path.replace(os.sep, '/')
+        file = File(event.src_path.replace(os.sep, '/'))
 
-        self._logger.info("Modified %s" % file_path)
+        self._logger.info("Modified %s" % file.path)
 
-        parent_dir_path = os.path.dirname(file_path)
-        file_name = os.path.basename(file_path)
+        parent_dir_path = os.path.dirname(file.path)
+        file_name = os.path.basename(file.path)
 
         # add modified file to ipfs
-        _, file_hash = self._ipfs_client.add_file(file_path)
+        _, file_hash = self._ipfs_client.add_file(file)
 
         # replace modified file in content
-        self._content.add(file_path, file_hash)
+        self._content.add(file.path, file_hash)
 
         # remove link from parent to the file before being modified
         self._ipfs_client.rm_link(self._content[parent_dir_path], file_name)
@@ -72,34 +74,14 @@ class EventHandler(FileSystemEventHandler):
         self._logger.info("Created %s" % src_path)
 
         if os.path.isdir(src_path):
-            self._on_created_dir(src_path)
+            self._content.add_list(self._ipfs_client.add_dir(Directory(src_path), True))
         else:
-            self._on_created_file(src_path)
+            _, file_hash = self._ipfs_client.add_file(File(src_path))
+            self._content.add(src_path, file_hash)
 
         src_hash = self._content[src_path]
 
         self._add_links_to_parent_dirs(src_path, src_hash)
-
-    def _on_created_dir(self, dir_path):
-        parent_dir_path = os.path.dirname(dir_path)
-        dir_name = os.path.basename(dir_path)
-
-        current_dir = os.getcwd()
-        os.chdir(parent_dir_path)
-
-        relative_dir_content = self._ipfs_client.add_dir(dir_name, True)
-
-        os.chdir(current_dir)
-
-        dir_content = [(parent_dir_path + '/' + name, hash) for name, hash in relative_dir_content]
-
-        self._content.add_list(dir_content)
-
-        return self._content[dir_path]
-
-    def _on_created_file(self, file_path):
-        _, file_hash = self._ipfs_client.add_file(file_path)
-        self._content.add(file_path, file_hash)
 
     def _add_links_to_parent_dirs(self, src_path, src_hash):
         while os.path.dirname(src_path):
