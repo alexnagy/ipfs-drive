@@ -12,29 +12,6 @@ class AESCipher(Cipher):
         super().__init__()
         self._key = SHA256.new(password.encode('utf-8')).digest()
 
-    # def encrypt(self, raw):
-    #     raw = self._pad(raw)
-    #     if isinstance(raw, str):
-    #         raw = raw.encode()
-    #     iv = Random.new().read(AES.block_size)
-    #     cipher = AES.new(self._key, AES.MODE_CBC, iv)
-    #     return base64.b64encode(iv + cipher.encrypt(raw))
-    #
-    # def decrypt(self, enc):
-    #     enc = base64.b64decode(enc)
-    #     iv = enc[:16]
-    #     cipher = AES.new(self._key, AES.MODE_CBC, iv)
-    #     return self._unpad(cipher.decrypt(enc[16:]))
-    #
-    # @staticmethod
-    # def _pad(s):
-    #     bs = AES.block_size
-    #     return s + (bs - len(s) % bs) * chr(bs - len(s) % bs)
-    #
-    # @staticmethod
-    # def _unpad(s):
-    #     return s[0:-s[-1]]
-
     def encrypt_file(self, input_file, output_file):
         chunk_size = 64 * 1024
         file_size = str(os.path.getsize(input_file)).zfill(16).encode()
