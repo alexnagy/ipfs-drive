@@ -31,10 +31,8 @@ def init_logger():
 
 
 if __name__ == "__main__":
-    # root_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
-    # root_dir.replace(os.sep, '/')
-
-    root_dir = r'd:/Facultate/Thesis/test/test2'
+    root_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
+    root_dir = root_dir.replace(os.sep, '/')
 
     logger = init_logger()
 
