@@ -1,21 +1,16 @@
 import ipfsapi
 import os
 import json
-import shutil
-
-from encryption.aes_cipher import AESCipher
-from directory import Directory
-from file import File
 
 
 class IPFSClient:
-    def __init__(self, logger):
-        self._logger = logger
-        self._conn = ipfsapi.connect('127.0.0.1', 5001)
-        self._aes = AESCipher('parola')
-        self._working_dir = os.path.join(os.getcwd(), 'working_dir')
+    def __init__(self, cipher, working_dir, logger):
+        self._cipher = cipher
+        self._working_dir = working_dir
         if not os.path.isdir(self._working_dir):
             os.mkdir(self._working_dir)
+        self._logger = logger
+        self._conn = ipfsapi.connect('127.0.0.1', 5001)
 
     def add_file(self, file, encrypted=True):
         if not os.path.exists(file.path):
@@ -23,7 +18,7 @@ class IPFSClient:
 
         original_file_path = file.path
         if encrypted:
-            encrypted_file_path = file.encrypt_content(self._aes, self._working_dir)
+            encrypted_file_path = file.encrypt_content(self._cipher, self._working_dir)
             file.path = encrypted_file_path.replace(os.sep, '/')
 
         resp = self._conn.add(file.path)
@@ -35,7 +30,7 @@ class IPFSClient:
             file.remove()
             file.path = original_file_path
 
-        return os.path.join(os.path.dirname(file.path), resp['Name']).replace(os.sep, '/'), resp['Hash']
+        return resp['Hash']
 
     def add_dir(self, dir, recursive, encrypted=True):
         if not os.path.exists(dir.path):
@@ -43,10 +38,8 @@ class IPFSClient:
 
         original_dir_path = dir.path
         if encrypted:
-            encrypted_dir_path = dir.encrypt_content(self._aes, self._working_dir)
+            encrypted_dir_path = dir.encrypt_content(self._cipher, self._working_dir)
             dir.path = encrypted_dir_path.replace(os.sep, '/')
-
-        self._logger.debug("Adding %s to IPFS" % dir.path)
 
         resp = self._conn.add(dir.path, recursive)
 
@@ -78,4 +71,8 @@ class IPFSClient:
 
     def ls(self, hash):
         resp = self._conn.ls(hash)
+
         return json.dumps(resp, indent=4)
+
+    def get(self, hash):
+        self._conn.get(hash)

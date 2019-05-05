@@ -8,7 +8,7 @@ class Directory:
     def __init__(self, path):
         if not os.path.isdir(path):
             raise Exception("%s is not a directory!" % path)
-        self._path = path
+        self._path = path.replace(os.sep, '/')
         self._parent = os.path.dirname(self._path)
         self._name = os.path.basename(self._path)
 
@@ -18,7 +18,7 @@ class Directory:
 
     @path.setter
     def path(self, path):
-        self._path = path
+        self._path = path.replace(os.sep, '/')
 
     def remove(self):
         shutil.rmtree(self._path)
@@ -68,7 +68,7 @@ class Directory:
         return encypted_dir_path
 
     def decrypt_content(self, cipher, dst_dir):
-        decrypted_dir_path = os.path.join(dst_dir, self._name + '_decrypted')
+        decrypted_dir_path = os.path.join(dst_dir, self._name)
 
         prev_cwd = os.getcwd()
         os.chdir(self._parent)
