@@ -24,6 +24,3 @@ class Db:
 
     def get_content(self):
         return self._db.child("content").child(self._user["localId"]).get().val()
-
-# db = Db("alex.nagy22@yahoo.com", "ipfspwd")
-# db.add_hash("b.txt", "Qmceva")
