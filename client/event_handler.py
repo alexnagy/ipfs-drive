@@ -1,19 +1,18 @@
 import os
+import logging
 
 from watchdog.events import FileSystemEventHandler
-from encryption.aes_cipher import AESCipher
 from directory import Directory
 from file import File
 
 
 class EventHandler(FileSystemEventHandler):
-    def __init__(self, ipfs_client, content, root_dir, logger):
+    def __init__(self, ipfs_client, content, root_dir):
         super().__init__()
         self._ipfs_client = ipfs_client
         self._content = content
         self._root_dir = root_dir
-        self._logger = logger
-        self._aes = AESCipher('parola')
+        self._logger = logging.getLogger()
     
     def on_created(self, event):
         src_path = event.src_path.replace(os.sep, '/')
@@ -40,17 +39,18 @@ class EventHandler(FileSystemEventHandler):
         # replace modified file in content
         self._content.add(file.path, file_hash)
 
-        # remove link from parent to the file before being modified
-        self._ipfs_client.rm_link(self._content[parent_dir_path], file_name)
+        if self._content.contains(parent_dir_path):
+            # remove link from parent to the file before being modified
+            self._ipfs_client.rm_link(self._content[parent_dir_path], file_name)
 
-        # add link from parent to the file after being modified
-        new_parent_dir_hash = self._ipfs_client.add_link(self._content[parent_dir_path], file_name, file_hash)
+            # add link from parent to the file after being modified
+            new_parent_dir_hash = self._ipfs_client.add_link(self._content[parent_dir_path], file_name, file_hash)
 
-        # add new parent link to self._content
-        self._content.add(parent_dir_path, new_parent_dir_hash)
+            # add new parent link to self._content
+            self._content.add(parent_dir_path, new_parent_dir_hash)
 
-        # add link from parent dirs to the updated parent dir of the modified file
-        self._add_links_to_parent_dirs(parent_dir_path, self._content[parent_dir_path])
+            # add link from parent dirs to the updated parent dir of the modified file
+            self._add_links_to_parent_dirs(parent_dir_path, self._content[parent_dir_path])
 
     def on_moved(self, event):
         src_path = event.src_path.replace(os.sep, '/')
@@ -101,6 +101,8 @@ class EventHandler(FileSystemEventHandler):
         self._logger.info("Deleted %s" % src_path)
 
         parent_dir_path = os.path.dirname(src_path)
+
+        self._content.remove(src_path)
 
         if self._content[parent_dir_path] is None:
             return

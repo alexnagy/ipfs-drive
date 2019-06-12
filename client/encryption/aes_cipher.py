@@ -8,9 +8,12 @@ from Crypto.Hash import SHA256
 
 
 class AESCipher(Cipher):
-    def __init__(self, password):
+    def __init__(self):
         super().__init__()
-        self._key = SHA256.new(password.encode('utf-8')).digest()
+        self._key = None
+
+    def create_key(self, encyrption_password):
+        self._key = SHA256.new(encyrption_password.encode('utf-8')).digest()
 
     def encrypt_file(self, input_file, output_file):
         chunk_size = 64 * 1024

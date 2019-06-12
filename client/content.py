@@ -1,12 +1,13 @@
 import json
 import os
+import logging
 
 
 class Content:
-    def __init__(self, root_dir, db, logger):
+    def __init__(self, root_dir, db):
         self._root_dir = root_dir
         self._db = db
-        self._logger = logger
+        self._logger = logging.getLogger()
         self._content = {}
 
     def add(self, path, hash):
@@ -28,6 +29,9 @@ class Content:
         hash = self._content.pop(path)
         # self._db.remove_content(path)
         self._logger.debug("Removed %s: %s from content" % (path, hash))
+
+    def contains(self, path):
+        return path in self._content
 
     def __getitem__(self, item):
         return self._content.get(item, None)

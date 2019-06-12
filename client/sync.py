@@ -1,19 +1,20 @@
 import os
 import shutil
 import base64
+import logging
 
 from file import File
 from directory import Directory
 
 
 class Sync:
-    def __init__(self, root_dir, working_dir, db, ipfs_client, cipher, logger):
+    def __init__(self, root_dir, working_dir, db, ipfs_client, cipher):
         self._root_dir = root_dir
         self._working_dir = working_dir
         self._db = db
         self._ipfs_client = ipfs_client
         self._cipher = cipher
-        self._logger = logger
+        self._logger = logging.getLogger()
 
     def sync(self):
         cwd = os.getcwd()
