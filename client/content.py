@@ -27,7 +27,8 @@ class Content:
 
     def remove(self, path):
         hash = self._content.pop(path)
-        # self._db.remove_content(path)
+        if os.path.relpath(path, self._root_dir) == os.path.basename(path):
+            self._db.remove_content(os.path.basename(path))
         self._logger.debug("Removed %s: %s from content" % (path, hash))
 
     def contains(self, path):

@@ -33,11 +33,9 @@ class IPFSClient:
             file.remove()
             file.path = original_file_path
 
-        self.pin_to_cluster(resp['Hash'])
-
         return resp['Hash']
 
-    def add_dir(self, dir, recursive, encrypted=True):
+    def add_dir(self, dir, encrypted=True):
         if not os.path.exists(dir.path):
             raise FileNotFoundError(dir.path)
 
@@ -57,14 +55,8 @@ class IPFSClient:
             dir.path = original_dir_path
 
         if isinstance(resp, list):
-            return_list = []
-            for d in resp:
-                if d['Name'] == os.path.basename(dir.path):
-                    self.pin_to_cluster(d['Hash'])
-                return_list.append((os.path.join(os.path.dirname(dir.path), d['Name']).replace(os.sep, '/'), d['Hash']))
-            return return_list
+            return [(os.path.join(os.path.dirname(dir.path), d['Name']).replace(os.sep, '/'), d['Hash']) for d in resp]
         elif isinstance(resp, dict):
-            self.pin_to_cluster(resp['Hash'])
             return [(os.path.join(os.path.dirname(dir.path), resp['Name']).replace(os.sep, '/'), resp['Hash'])]
         else:
             raise Exception("Unhandled response instance %s!" % type(resp))
@@ -92,19 +84,3 @@ class IPFSClient:
     def get(self, hash):
         with ipfshttpclient.connect() as client:
             client.get(hash)
-
-    def pin_to_cluster(self, multihash):
-        clusters = ['40.78.159.206', '104.43.141.191', '40.77.30.228']
-        url = r'http://%s:9094/pins/%s' % (random.choice(clusters), multihash)
-
-        for _ in range(5):
-            try:
-                response = requests.post(url, timeout=5)
-                response.raise_for_status()
-            except requests.HTTPError as http_err:
-                self._logger.error(http_err)
-            except Exception as err:
-                self._logger.error(err)
-            else:
-                self._logger.info("Pinned %s to cluster" % multihash)
-                break

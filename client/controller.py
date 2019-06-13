@@ -9,6 +9,7 @@ from firebase import Firebase
 from requests.exceptions import HTTPError
 from ipfs import IPFS
 from ipfs_client import IPFSClient
+from ipfs_cluster import IPFSCluster
 from database import Db
 from content import Content
 from sync import Sync
@@ -17,9 +18,7 @@ from event_handler import EventHandler
 from watchdog.observers import Observer
 from file import File
 from directory import Directory
-from gui.app import *
-
-from tkinter import Label
+from gui.gui import *
 
 
 class Controller:
@@ -37,11 +36,13 @@ class Controller:
         self._encryption_password = None
         self._content = None
         self._event_observer = None
+        self._start_time = None
 
         self._cipher = AESCipher()
         self._ipfs_client = IPFSClient(self._cipher, self._working_dir_path)
+        self._ipfs_cluster = IPFSCluster()
 
-        self.root = App()
+        self.root = GUI()
 
         self.root.get_frame(Main).start_button.config(command=self.start)
 
@@ -112,23 +113,6 @@ class Controller:
 
         start_thread = threading.Thread(target=self._start_thread)
         start_thread.start()
-        # start_thread.join()
-
-        # while start_thread.is_alive():
-        #     print("Am I stuck here?")
-        #     time.sleep(0.5)
-
-        # self._start_event_observer()
-        #
-        # try:
-        #     while True:
-        #         time.sleep(1)
-        # except KeyboardInterrupt:
-        #     self._event_observer.stop()
-        #
-        # self._event_observer.join()
-        #
-        # shutil.rmtree(self._working_dir_path)
 
     def _start_thread(self):
         self._start_ipfs()
@@ -172,7 +156,7 @@ class Controller:
         self.root.current_frame.sync_label.config(text="Synchronized")
 
     def _start_event_observer(self):
-        event_handler = EventHandler(self._ipfs_client, self._content, self._root_dir_path)
+        event_handler = EventHandler(self._ipfs_client, self._ipfs_cluster, self._content, self._root_dir_path)
         self._event_observer = Observer()
         self._event_observer.schedule(event_handler, self._root_dir_path, recursive=True)
         self._event_observer.start()
@@ -196,7 +180,8 @@ class Controller:
                 hash = self._ipfs_client.add_file(file)
                 self._content.add(file.path, hash)
             elif os.path.isdir(full_path):
-                content_list = self._ipfs_client.add_dir(Directory(full_path), recursive=True)
+                content_list = self._ipfs_client.add_dir(Directory(full_path))
                 self._content.add_list(content_list)
+            self._ipfs_cluster.pin(self._content[full_path])
 
         self.root.current_frame.add_root_dir_label.configure(text="Added root directory to IPFS-Drive")

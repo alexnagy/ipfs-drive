@@ -2,7 +2,7 @@ import ctypes
 import os
 
 from controller import Controller
-from gui.app import App
+from gui.gui import GUI
 
 
 def create_working_dir():

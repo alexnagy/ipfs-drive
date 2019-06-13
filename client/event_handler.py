@@ -7,9 +7,10 @@ from file import File
 
 
 class EventHandler(FileSystemEventHandler):
-    def __init__(self, ipfs_client, content, root_dir):
+    def __init__(self, ipfs_client, ipfs_cluster, content, root_dir):
         super().__init__()
         self._ipfs_client = ipfs_client
+        self._ipfs_cluster = ipfs_cluster
         self._content = content
         self._root_dir = root_dir
         self._logger = logging.getLogger()
@@ -34,17 +35,19 @@ class EventHandler(FileSystemEventHandler):
         file_name = os.path.basename(file.path)
 
         # add modified file to ipfs
-        file_hash = self._ipfs_client.add_file(file)
+        file.multihash = self._ipfs_client.add_file(file)
+
+        self._ipfs_cluster.pin(file.multihash)
 
         # replace modified file in content
-        self._content.add(file.path, file_hash)
+        self._content.add(file.path, file.multihash)
 
         if self._content.contains(parent_dir_path):
             # remove link from parent to the file before being modified
             self._ipfs_client.rm_link(self._content[parent_dir_path], file_name)
 
             # add link from parent to the file after being modified
-            new_parent_dir_hash = self._ipfs_client.add_link(self._content[parent_dir_path], file_name, file_hash)
+            new_parent_dir_hash = self._ipfs_client.add_link(self._content[parent_dir_path], file_name, file.multihash)
 
             # add new parent link to self._content
             self._content.add(parent_dir_path, new_parent_dir_hash)
@@ -68,10 +71,13 @@ class EventHandler(FileSystemEventHandler):
         self._logger.info("Created %s" % src_path)
 
         if os.path.isdir(src_path):
-            self._content.add_list(self._ipfs_client.add_dir(Directory(src_path), recursive=False))
+            if not os.listdir(src_path):
+                return
+            self._content.add_list(self._ipfs_client.add_dir(Directory(src_path)))
         else:
             file = File(src_path)
             file.multihash = self._ipfs_client.add_file(file)
+
             self._content.add(file.path, file.multihash)
 
         src_hash = self._content[src_path]
@@ -79,7 +85,7 @@ class EventHandler(FileSystemEventHandler):
         self._add_links_to_parent_dirs(src_path, src_hash)
 
     def _add_links_to_parent_dirs(self, src_path, src_hash):
-        while os.path.dirname(src_path):
+        while self._content[os.path.dirname(src_path)]:
             parent_dir = os.path.dirname(src_path)
             parent_dir_hash = self._content[parent_dir]
 
@@ -97,14 +103,16 @@ class EventHandler(FileSystemEventHandler):
             src_path = parent_dir
             src_hash = self._content[parent_dir]
 
+        self._ipfs_cluster.pin(src_hash)
+
     def _on_deleted(self, src_path):
         self._logger.info("Deleted %s" % src_path)
 
         parent_dir_path = os.path.dirname(src_path)
 
-        self._content.remove(src_path)
-
         if self._content[parent_dir_path] is None:
+            self._ipfs_cluster.unpin(self._content[src_path])
+            self._content.remove(src_path)
             return
 
         new_parent_dir_hash = self._ipfs_client.rm_link(self._content[parent_dir_path], os.path.basename(src_path))
