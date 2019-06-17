@@ -5,7 +5,7 @@ import logging
 
 class IPFSCluster:
     def __init__(self):
-        self._peers = ['40.78.159.206', '104.43.141.191', '40.77.30.228']
+        self._peers = ['40.78.159.206', '23.99.201.242', '40.77.30.228']
         self._logger = logging.getLogger()
 
     def pin(self, multihash):

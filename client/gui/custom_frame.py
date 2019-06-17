@@ -12,3 +12,7 @@ class CustomFrame(Frame):
     @staticmethod
     def show_error(message):
         messagebox.showerror("Error", message)
+
+    @staticmethod
+    def close():
+        return messagebox.askokcancel("Quit", "Are you sure you want to quit?")

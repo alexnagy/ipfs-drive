@@ -30,13 +30,13 @@ class Controller:
         self._firebase = Firebase(config)
         self._auth = self._firebase.auth()
         self._db = None
-        self._uid = None
         self._ipfs = None
         self._root_dir_path = None
         self._encryption_password = None
         self._content = None
         self._event_observer = None
         self._start_time = None
+        self._sync = None
 
         self._cipher = AESCipher()
         self._ipfs_client = IPFSClient(self._cipher, self._working_dir_path)
@@ -51,6 +51,8 @@ class Controller:
 
         self.root.get_frame(Registration).sign_up_button.config(command=self.sign_up)
 
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+
         self.root.mainloop()
 
     def sign_in(self):
@@ -59,7 +61,9 @@ class Controller:
 
         try:
             response = self._auth.sign_in_with_email_and_password(email, password)
-            self._uid = response['localId']
+            uid = response['localId']
+            token = response['idToken']
+            self._db = Db(self._firebase.database(), uid, token)
             self.root.show_frame(Main)
         except HTTPError as http_err:
             reason = json.loads(http_err.args[1])['error']['message']
@@ -67,8 +71,6 @@ class Controller:
                 self.root.current_frame.show_error("No account with this e-mail found!")
             elif reason == 'INVALID_PASSWORD':
                 self.root.current_frame.show_error("The password is invalid!")
-
-        self._db = Db(self._firebase.database(), self._uid)
 
     def sign_up(self):
         email = self.root.current_frame.email_var.get()
@@ -118,7 +120,7 @@ class Controller:
         self._start_ipfs()
 
         if self.root.current_frame.sync_var.get() == 1:
-            self._sync()
+            self._synchronize()
 
         if self.root.current_frame.add_root_dir_var.get() == 1:
             self._add_root_dir()
@@ -127,15 +129,8 @@ class Controller:
 
         self._start_event_observer()
 
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            self._event_observer.stop()
-
-        self._event_observer.join()
-
-        shutil.rmtree(self._working_dir_path)
+        while True:
+            time.sleep(1)
 
     def _start_ipfs(self):
         self.root.current_frame.ipfs_label.pack()
@@ -147,11 +142,12 @@ class Controller:
 
         self.root.current_frame.ipfs_label.configure(text="IPFS ready")
 
-    def _sync(self):
+    def _synchronize(self):
         self.root.current_frame.sync_label.pack()
         self.root.current_frame.sync_label.configure(text="Synchronizing...")
 
-        Sync(self._root_dir_path, self._working_dir_path, self._db, self._ipfs_client, self._cipher).sync()
+        self._sync = Sync(self._root_dir_path, self._working_dir_path, self._content, self._db, self._ipfs_client, self._cipher)
+        self._sync.start()
 
         self.root.current_frame.sync_label.config(text="Synchronized")
 
@@ -185,3 +181,13 @@ class Controller:
             self._ipfs_cluster.pin(self._content[full_path])
 
         self.root.current_frame.add_root_dir_label.configure(text="Added root directory to IPFS-Drive")
+
+    def _on_closing(self):
+        if self.root.current_frame.close():
+            if self._event_observer:
+                self._event_observer.stop()
+                self._event_observer.join()
+            if self._sync:
+                self._sync.stop()
+            shutil.rmtree(self._working_dir_path)
+            self.root.destroy()

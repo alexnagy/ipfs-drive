@@ -1,18 +1,26 @@
-import ctypes
-import os
-
-from controller import Controller
-from gui.gui import GUI
+from firebase import Firebase
+import json
+import time
 
 
-def create_working_dir():
-    working_dir_path = os.path.join(os.getcwd(), "working_dir")
-    if not os.path.exists(working_dir_path):
-        os.mkdir(working_dir_path)
-        ctypes.windll.kernel32.SetFileAttributesW(working_dir_path, 2)
-    return working_dir_path
+def stream_handler(message):
+    print(message)
 
 
 if __name__ == '__main__':
-    working_dir_path = create_working_dir()
-    c = Controller(working_dir_path)
+    config = json.load(open("firebase.cfg"))
+    fb = Firebase(config)
+    auth = fb.auth()
+    resp = auth.sign_in_with_email_and_password('alexandru.nagy@gmail.com', 'ipfsdrive')
+
+    uid = resp['localId']
+    token = resp['idToken']
+
+    db = fb.database()
+
+    my_stream = db.child("content").child(uid).stream(stream_handler, token=token)
+    try:
+        while True:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        my_stream.close()
