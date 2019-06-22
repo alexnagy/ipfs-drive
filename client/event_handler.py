@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 
 from watchdog.events import FileSystemEventHandler
 from directory import Directory
@@ -68,7 +69,7 @@ class EventHandler(FileSystemEventHandler):
         self._on_deleted(src_path)
 
     def _on_created(self, src_path):
-        self._logger.info("Created %s" % src_path)
+        self._logger.info("Created %s at %s" % (src_path, time.time()))
 
         if os.path.isdir(src_path):
             if not os.listdir(src_path):

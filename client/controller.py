@@ -4,6 +4,7 @@ import os
 import threading
 import shutil
 import ctypes
+import logging
 
 from firebase import Firebase
 from requests.exceptions import HTTPError
@@ -37,6 +38,8 @@ class Controller:
         self._event_observer = None
         self._start_time = None
         self._sync = None
+
+        self._logger = logging.getLogger()
 
         self._cipher = AESCipher()
         self._ipfs_client = IPFSClient(self._cipher, self._working_dir_path)
@@ -171,6 +174,9 @@ class Controller:
             full_path = os.path.join(self._root_dir_path, path).replace(os.sep, '/')
             if os.path.getctime(full_path) >= self._start_time:
                 continue
+
+            t0 = time.time()
+
             if os.path.isfile(full_path):
                 file = File(full_path)
                 hash = self._ipfs_client.add_file(file)
@@ -179,6 +185,10 @@ class Controller:
                 content_list = self._ipfs_client.add_dir(Directory(full_path))
                 self._content.add_list(content_list)
             self._ipfs_cluster.pin(self._content[full_path])
+
+            t1 = time.time()
+
+            self._logger.debug("Storage time %s: %s" % (path, t1-t0))
 
         self.root.current_frame.add_root_dir_label.configure(text="Added root directory to IPFS-Drive")
 
