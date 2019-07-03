@@ -23,9 +23,6 @@ from directory import Directory
 from gui.gui import *
 from ipfs_fs import IPFSDirectory, IPFSFile, walk
 
-from authentication_controller import AuthenticationController
-from registration_controller import RegistrationController
-
 
 class Controller:
     def __init__(self):
@@ -33,8 +30,8 @@ class Controller:
         self._create_working_dir()
 
         config = json.load(open("firebase.cfg"))
-        self._fbs = Firebase(config)
-        self._auth = self._fbs.auth()
+        self._firebase = Firebase(config)
+        self._auth = self._firebase.auth()
         self._db = None
         self._ipfs = None
         self._root_dir_path = None
@@ -52,19 +49,65 @@ class Controller:
 
         self.root = GUI()
 
-        self._authentication_controller = AuthenticationController(self.root, self._fbs.database(), self._fbs.auth())
-        self._registration_controller = RegistrationController(self.root, self._fbs.auth())
-
-
         self.root.get_frame(Start).start_button.config(command=self.start)
+
+        self.root.get_frame(Authentication).sign_in_button.config(command=self.sign_in)
+        self.root.get_frame(Authentication).register_button.config(command=lambda: self.root.show_frame(Registration))
+
+        self.root.get_frame(Registration).sign_up_button.config(command=self.sign_up)
 
         self.root.get_frame(Main).listbox.bind('<Double-Button-1>', self.on_double_click)
 
         self.listbox_content = {}
 
+
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         self.root.mainloop()
+
+    def sign_in(self):
+        email = self.root.current_frame.email_var.get()
+        password = self.root.current_frame.password_var.get()
+
+        try:
+            response = self._auth.sign_in_with_email_and_password(email, password)
+            uid = response['localId']
+            token = response['idToken']
+            self._db = Db(self._firebase.database(), uid, token)
+            self.root.show_frame(Start)
+        except HTTPError as http_err:
+            reason = json.loads(http_err.args[1])['error']['message']
+            if reason == 'INVALID_EMAIL':
+                self.root.current_frame.show_error("The e-mail address is invalid!")
+            elif reason == 'EMAIL_NOT_FOUND':
+                self.root.current_frame.show_error("No account with this e-mail found!")
+            elif reason == 'INVALID_PASSWORD':
+                self.root.current_frame.show_error("The password is invalid!")
+            else:
+                self._logger.error(reason)
+
+    def sign_up(self):
+        email = self.root.current_frame.email_var.get()
+        password = self.root.current_frame.password_var.get()
+        repeat_password = self.root.current_frame.repeat_password_var.get()
+
+        if password != repeat_password:
+            self.root.current_frame.show_error("Passwords do not match!")
+
+        try:
+            self._auth.create_user_with_email_and_password(email, password)
+            self.root.current_frame.show_info("Registration completed successfully!")
+            self.root.show_frame(Authentication)
+        except HTTPError as http_err:
+            reason = json.loads(http_err.args[1])['error']['message']
+            if reason == 'EMAIL_EXISTS':
+                self.root.current_frame.show_error("An account with this e-mail already exists!")
+            elif reason == 'INVALID_EMAIL':
+                self.root.current_frame.show_error("The e-mail address is invalid!")
+            elif reason.startswith('WEAK_PASSWORD'):
+                self.root.current_frame.show_error("Password should be at least 6 characters!")
+            else:
+                self._logger.error(reason)
 
     def start(self):
         if not self.root.current_frame.root_dir_var.get():
