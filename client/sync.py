@@ -3,7 +3,6 @@ import shutil
 import base64
 import logging
 import time
-import json
 
 from file import File
 from directory import Directory
@@ -21,43 +20,30 @@ class Sync:
         self._logger = logging.getLogger()
 
     def start(self):
-        self._download(self._db.get_content())
-
-    def stop(self):
-        self._stream.close()
+        db_content = self._db.get_content()
+        content = {v: k for k, v in db_content.items()}
+        self._download(content)
 
     def _download(self, content):
         cwd = os.getcwd()
         os.chdir(self._working_dir)
 
-        time_dict = {}
+        for multihash in content.keys():
+            self._ipfs_client.get(multihash)
 
-        for hash in content.values():
-            t0 = time.time()
-            self._ipfs_client.get(hash)
-            time_dict[hash] = time.time()-t0
-
-        content = {v: k for k, v in content.items()}
-
-        for path in os.listdir(self._working_dir):
-            t0 = time.time()
-
-            hash = path
-            decoded_name = base64.b64decode(content[path]).decode()
-            os.rename(path, decoded_name)
-            path = decoded_name
-            full_path = os.path.join(self._working_dir, path)
+        for multihash in os.listdir(self._working_dir):
+            name = base64.b64decode(content[multihash]).decode()
+            os.rename(multihash, name)
+            full_path = os.path.join(self._working_dir, name)
 
             if os.path.isfile(full_path):
-                File(full_path).decrypt_content(self._cipher, self._root_dir)
+                File(full_path).decrypt_content(cipher=self._cipher, dst_dir=self._root_dir)
+                time.sleep(0.1)
                 os.remove(full_path)
             elif os.path.isdir(full_path):
-                Directory(full_path).decrypt_content(self._cipher, self._root_dir)
+                Directory(full_path).decrypt_content(cipher=self._cipher, dst_dir=self._root_dir)
+                time.sleep(0.1)
                 shutil.rmtree(full_path)
-
-            time_dict[hash] += time.time() - t0
-
-        self._logger.debug("Sync time:\n %s" % json.dumps(time_dict, indent=4))
 
         os.chdir(cwd)
 
@@ -83,8 +69,4 @@ class Sync:
                         os.remove(full_path)
                     elif os.path.isdir(full_path):
                         shutil.rmtree(full_path)
-
-
-
-
 

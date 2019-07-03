@@ -5,6 +5,7 @@ import threading
 import shutil
 import ctypes
 import logging
+import base64
 
 from firebase import Firebase
 from requests.exceptions import HTTPError
@@ -20,6 +21,7 @@ from watchdog.observers import Observer
 from file import File
 from directory import Directory
 from gui.gui import *
+from ipfs_fs import IPFSDirectory, IPFSFile, walk
 
 
 class Controller:
@@ -47,12 +49,17 @@ class Controller:
 
         self.root = GUI()
 
-        self.root.get_frame(Main).start_button.config(command=self.start)
+        self.root.get_frame(Start).start_button.config(command=self.start)
 
         self.root.get_frame(Authentication).sign_in_button.config(command=self.sign_in)
         self.root.get_frame(Authentication).register_button.config(command=lambda: self.root.show_frame(Registration))
 
         self.root.get_frame(Registration).sign_up_button.config(command=self.sign_up)
+
+        self.root.get_frame(Main).listbox.bind('<Double-Button-1>', self.on_double_click)
+
+        self.listbox_content = {}
+
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
 
@@ -67,13 +74,17 @@ class Controller:
             uid = response['localId']
             token = response['idToken']
             self._db = Db(self._firebase.database(), uid, token)
-            self.root.show_frame(Main)
+            self.root.show_frame(Start)
         except HTTPError as http_err:
             reason = json.loads(http_err.args[1])['error']['message']
             if reason == 'INVALID_EMAIL':
+                self.root.current_frame.show_error("The e-mail address is invalid!")
+            elif reason == 'EMAIL_NOT_FOUND':
                 self.root.current_frame.show_error("No account with this e-mail found!")
             elif reason == 'INVALID_PASSWORD':
                 self.root.current_frame.show_error("The password is invalid!")
+            else:
+                self._logger.error(reason)
 
     def sign_up(self):
         email = self.root.current_frame.email_var.get()
@@ -95,6 +106,8 @@ class Controller:
                 self.root.current_frame.show_error("The e-mail address is invalid!")
             elif reason.startswith('WEAK_PASSWORD'):
                 self.root.current_frame.show_error("Password should be at least 6 characters!")
+            else:
+                self._logger.error(reason)
 
     def start(self):
         if not self.root.current_frame.root_dir_var.get():
@@ -113,20 +126,25 @@ class Controller:
 
         self._cipher.create_key(self.root.current_frame.encryption_password_var.get())
 
+        start_thread = threading.Thread(target=self._start_thread, args=(self.root.current_frame.sync_var.get(),
+                                                                         self.root.current_frame.add_root_dir_var.get()))
+        start_thread.start()
+
+    def _start_thread(self, sync=False, add_root_dir=False):
+        self.root.show_frame(Main)
+
         self.root.current_frame.progress_bar.pack()
         self.root.current_frame.progress_bar.start(interval=20)
 
-        start_thread = threading.Thread(target=self._start_thread)
-        start_thread.start()
-
-    def _start_thread(self):
         self._start_ipfs()
 
-        if self.root.current_frame.sync_var.get() == 1:
+        if sync:
             self._synchronize()
 
-        if self.root.current_frame.add_root_dir_var.get() == 1:
+        if add_root_dir:
             self._add_root_dir()
+
+        self._populate_listbox()
 
         self.root.current_frame.progress_bar.stop()
 
@@ -174,9 +192,7 @@ class Controller:
             full_path = os.path.join(self._root_dir_path, path).replace(os.sep, '/')
             if os.path.getctime(full_path) >= self._start_time:
                 continue
-
-            t0 = time.time()
-
+            self.root.current_frame.add_root_dir_label.configure(text="Adding %s to IPFS-Drive..." % full_path)
             if os.path.isfile(full_path):
                 file = File(full_path)
                 hash = self._ipfs_client.add_file(file)
@@ -185,10 +201,6 @@ class Controller:
                 content_list = self._ipfs_client.add_dir(Directory(full_path))
                 self._content.add_list(content_list)
             self._ipfs_cluster.pin(self._content[full_path])
-
-            t1 = time.time()
-
-            self._logger.debug("Storage time %s: %s" % (path, t1-t0))
 
         self.root.current_frame.add_root_dir_label.configure(text="Added root directory to IPFS-Drive")
 
@@ -201,3 +213,53 @@ class Controller:
                 self._sync.stop()
             shutil.rmtree(self._working_dir_path)
             self.root.destroy()
+
+    def on_double_click(self, event):
+        listbox = self.root.current_frame.listbox
+        idx = listbox.curselection()[0]
+
+        if isinstance(self.listbox_content[idx], IPFSDirectory):
+            self.populate(self.listbox_content[idx])
+
+    def _populate_listbox(self):
+        db_content = self._db.get_content()
+        # idx = 0
+        # for k, v in db_content.items():
+        #     name = base64.b64decode(k).decode()
+        #     if '.' in name:
+        #         file = IPFSFile(name, v)
+        #     else:
+        #         file = IPFSDirectory(name, v)
+        #         walk(file)
+        #
+        #     self.listbox_content[idx] = file
+        #     self.root.current_frame.listbox.insert(idx, file.name)
+        #
+        #     idx += 1
+
+        root_dir = IPFSDirectory('.', None)
+        for k, v in db_content.items():
+            name = base64.b64decode(k).decode()
+            if '.' in name:
+                file = IPFSFile(name, v, root_dir)
+                root_dir.add_file(file)
+            else:
+                dir = IPFSDirectory(name, v, root_dir)
+                walk(dir)
+                root_dir.add_dir(dir)
+
+        self.populate(root_dir)
+
+    def populate(self, root_dir):
+        listbox = self.root.current_frame.listbox
+        listbox.delete('0', 'end')
+        idx = 1
+        self.listbox_content.clear()
+
+        listbox.insert(0, '<<')
+        self.listbox_content[0] = root_dir.parent
+
+        for file in root_dir.files + root_dir.dirs:
+            listbox.insert(idx, file.name)
+            self.listbox_content[idx] = file
+            idx += 1

@@ -13,22 +13,22 @@ class Authentication(CustomFrame):
         self.password_var = StringVar()
 
         Label(self, text="E-mail:").pack()
-        Entry(self, textvariable=self.email_var, width=30).pack()
+        Entry(self, textvariable=self.email_var, width=40).pack()
 
         Label(self, text="").pack()
 
         Label(self, text="Password:").pack()
-        Entry(self, textvariable=self.password_var, show='*', width=30).pack()
+        Entry(self, textvariable=self.password_var, show='*', width=40).pack()
 
         Label(self, text="").pack()
 
-        self.sign_in_button = Button(self, text="Sign in", width=10, height=1)
+        self.sign_in_button = Button(self, text="Sign in", width=15, height=1)
         self.sign_in_button.pack()
 
         Label(self, text="").pack()
 
         Label(self, text="Don't have an account?").pack()
-        self.register_button = Button(self, text="Register", height=1, width=10)
+        self.register_button = Button(self, text="Register", height=1, width=15)
         self.register_button.pack()
 
         Label(self, text="").pack()

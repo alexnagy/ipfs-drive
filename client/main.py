@@ -1,4 +1,7 @@
 import logging
+import multiaddr.codecs.idna
+import multiaddr.codecs.uint16be
+import sys
 
 from controller import Controller
 
@@ -25,3 +28,4 @@ def init_logger():
 if __name__ == "__main__":
     init_logger()
     Controller()
+    sys.exit(0)

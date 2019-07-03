@@ -1,3 +1,4 @@
+from gui.start import Start
 from gui.main import Main
 from gui.authentication import Authentication
 from gui.registration import Registration
@@ -8,7 +9,7 @@ class GUI(Tk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.geometry("300x325")
+        self.geometry("300x350")
         self.title("IPFS-Drive")
 
         mainframe = Frame(self)
@@ -17,7 +18,7 @@ class GUI(Tk):
         mainframe.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
-        for F in (Main, Authentication, Registration):
+        for F in (Start, Main, Authentication, Registration):
             frame = F(master=mainframe)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")

@@ -4,7 +4,10 @@ import threading
 
 class IPFS(subprocess.Popen):
     def __init__(self):
-        super().__init__("ipfs daemon", stdout=subprocess.PIPE, universal_newlines=True)
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        super().__init__("ipfs daemon", stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                         startupinfo=startupinfo, universal_newlines=True)
         self._ready = False
         self._lock = threading.Lock()
         threading.Thread(target=self._check_if_ready).start()

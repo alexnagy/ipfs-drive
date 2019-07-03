@@ -8,19 +8,24 @@ def stream_handler(message):
 
 
 if __name__ == '__main__':
-    config = json.load(open("firebase.cfg"))
-    fb = Firebase(config)
-    auth = fb.auth()
-    resp = auth.sign_in_with_email_and_password('alexandru.nagy@gmail.com', 'ipfsdrive')
+    # config = json.load(open("firebase.cfg"))
+    # fb = Firebase(config)
+    # auth = fb.auth()
+    # resp = auth.sign_in_with_email_and_password('alexandru.nagy@gmail.com', 'ipfsdrive')
+    #
+    # uid = resp['localId']
+    # token = resp['idToken']
+    #
+    # db = fb.database()
+    #
+    # my_stream = db.child("content").child(uid).stream(stream_handler, token=token)
+    # try:
+    #     while True:
+    #         time.sleep(0.5)
+    # except KeyboardInterrupt:
+    #     my_stream.close()
 
-    uid = resp['localId']
-    token = resp['idToken']
+    with open('100mb', 'wb') as f:
+        num_chars = 100*1024 * 1024
+        f.write(b'0' * num_chars)
 
-    db = fb.database()
-
-    my_stream = db.child("content").child(uid).stream(stream_handler, token=token)
-    try:
-        while True:
-            time.sleep(0.5)
-    except KeyboardInterrupt:
-        my_stream.close()
