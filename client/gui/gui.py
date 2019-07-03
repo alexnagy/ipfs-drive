@@ -27,9 +27,11 @@ class GUI(Tk):
 
         self.show_frame(Authentication)
 
-    def show_frame(self, frame):
+    def show_frame(self, frame, command=None):
         self.current_frame = self.frames[frame]
         self.current_frame.tkraise()
+        if command:
+            command()
 
     def get_frame(self, frame):
         return self.frames[frame]
