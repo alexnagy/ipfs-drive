@@ -43,7 +43,7 @@ class EventHandler(FileSystemEventHandler):
         # replace modified file in content
         self._content.add(file.path, file.multihash)
 
-        if self._content.contains(parent_dir_path):
+        if self._content[parent_dir_path]:
             # remove link from parent to the file before being modified
             self._ipfs_client.rm_link(self._content[parent_dir_path], file_name)
 
@@ -73,8 +73,9 @@ class EventHandler(FileSystemEventHandler):
 
         if os.path.isdir(src_path):
             if not os.listdir(src_path):
-                return
-            self._content.add_list(self._ipfs_client.add_dir(Directory(src_path)))
+                self._content.add(src_path, r'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn')
+            else:
+                self._content.add_list(self._ipfs_client.add_dir(Directory(src_path)))
         else:
             file = File(src_path)
             file.multihash = self._ipfs_client.add_file(file)
@@ -109,8 +110,10 @@ class EventHandler(FileSystemEventHandler):
     def _on_deleted(self, src_path):
         self._logger.info("Deleted %s" % src_path)
 
-        parent_dir_path = os.path.dirname(src_path)
+        if self._content[src_path] is None:
+            return
 
+        parent_dir_path = os.path.dirname(src_path)
         if self._content[parent_dir_path] is None:
             self._ipfs_cluster.unpin(self._content[src_path])
             self._content.remove(src_path)

@@ -6,10 +6,12 @@ import time
 
 from file import File
 from directory import Directory
+from observable import Observable
 
 
-class Sync:
+class Sync(Observable):
     def __init__(self, root_dir, working_dir, content, db, ipfs_client, cipher):
+        super().__init__()
         self._root_dir = root_dir
         self._working_dir = working_dir
         self._content = content
@@ -17,7 +19,11 @@ class Sync:
         self._ipfs_client = ipfs_client
         self._cipher = cipher
         self._stream = self._db.get_stream(self._stream_handler)
+        self._should_listen = False
         self._logger = logging.getLogger()
+
+    def start_listening(self):
+        self._should_listen = True
 
     def start(self):
         db_content = self._db.get_content()
@@ -36,6 +42,8 @@ class Sync:
             os.rename(multihash, name)
             full_path = os.path.join(self._working_dir, name)
 
+            self._content.add(full_path, multihash)
+
             if os.path.isfile(full_path):
                 File(full_path).decrypt_content(cipher=self._cipher, dst_dir=self._root_dir)
                 time.sleep(0.1)
@@ -50,6 +58,12 @@ class Sync:
     def _stream_handler(self, message):
         self._logger.debug(message)
 
+        if not self._should_listen:
+            self._logger.debug("Not listening. Discarding the message")
+            return
+
+        self._notify()
+
         event = message['event']
         data = message['data']
         path = message['path'][1:]
@@ -58,13 +72,15 @@ class Sync:
             return
 
         if event == 'put':
+            full_path = os.path.join(self._root_dir, base64.b64decode(path).decode()).replace(os.sep, '/')
+
             if data:
-                if self._content[path] != data:
-                    self._download(dict(path=data))
-                    self._logger.debug("Downloaded %s at %s" % (path, time.time()))
+                if self._content[full_path] != data:
+                    self._download({data:path})
+                    self._logger.debug("Downloaded %s at %s" % (full_path, time.time()))
             else:
-                if self._content[path]:
-                    full_path = os.path.join(self._root_dir, path)
+                if self._content[full_path]:
+
                     if os.path.isfile(full_path):
                         os.remove(full_path)
                     elif os.path.isdir(full_path):

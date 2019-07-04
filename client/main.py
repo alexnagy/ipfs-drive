@@ -3,7 +3,8 @@ import multiaddr.codecs.idna
 import multiaddr.codecs.uint16be
 import sys
 
-from controller import Controller
+# from controller import Controller
+from gui.gui import IPFSDrive
 
 
 def init_logger():
@@ -27,5 +28,5 @@ def init_logger():
 
 if __name__ == "__main__":
     init_logger()
-    Controller()
+    IPFSDrive().run()
     sys.exit(0)
