@@ -34,10 +34,8 @@ class Main(CustomFrame, Observer):
         self.ipfs_label.pack()
 
         self.sync_label = Label(self, text="")
-        self.sync_label.pack()
 
         self.add_root_dir_label = Label(self, text="", width=50)
-        self.add_root_dir_label.pack()
 
         self._logger = logging.getLogger()
 
@@ -61,11 +59,13 @@ class Main(CustomFrame, Observer):
         self.ipfs_label.configure(text="IPFS ready")
 
         if sync:
+            self.sync_label.pack()
             self.sync_label.configure(text="Synchronizing...")
             self._controller.synchronize()
             self.sync_label.configure(text="Synchronized")
 
         if add_root_dir:
+            self.add_root_dir_label.pack()
             self.add_root_dir_label.configure(text="Adding root directory to IPFS-Drive...")
             self._controller.add_root_dir(start_time)
             self.add_root_dir_label.configure(text="Added root directory to IPFS-Drive")

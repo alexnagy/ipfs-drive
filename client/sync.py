@@ -27,6 +27,9 @@ class Sync(Observable):
 
     def start(self):
         db_content = self._db.get_content()
+        if db_content is None:
+            return
+
         content = {v: k for k, v in db_content.items()}
         self._download(content)
 

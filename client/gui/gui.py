@@ -179,7 +179,5 @@ class IPFSDrive(Tk):
             if self._event_observer:
                 self._event_observer.stop()
                 self._event_observer.join()
-            if self._sync:
-                self._sync.stop()
             shutil.rmtree(self._working_dir_path)
             self.destroy()

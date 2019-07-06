@@ -83,4 +83,8 @@ class IPFSClient:
 
     def get(self, hash):
         with ipfshttpclient.connect() as client:
+            try:
+                client.swarm.connect('/ip4/13.81.246.193/tcp/4001/ipfs/QmRrxZ9uFAMp36YBDWVQXpUd3S5ofXa4juPGjHg1Ymmwo2')
+            except:
+                pass
             client.get(hash)
